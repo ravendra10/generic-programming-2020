@@ -149,29 +149,42 @@ public:
 		if(row < r_ && col < c_ && value!=z_)
 			mat_[row][col] = value;
 	}
-	
-	
-	sparse_matrix<data,container>& add(const sparse_matrix<data,container>& rhs){ 
+
+	template <typename d,typename c>
+	friend class sparse_matrix;
+
+	template<typename c1,typename c2>
+	void add(sparse_matrix<data,c1>& rhs, sparse_matrix<data,c2>& result){ 
 		if(rhs.row_size() == r_ && rhs.col_size()==c_) {
-			cout<<"Flag\n";
-			data **m = nullptr;
-			sparse_matrix<data,container> *result = new sparse_matrix<data,container>(m,r_,c_,z_);
+			
 			for(int i = 0; i < r_; ++i)
 			{
 				auto j = mat_[i].begin();
 				auto j_rhs = rhs.mat_[i].begin();
 				while(j!=mat_[i].end()){
-					result->insert_at(i, j->first, j->second + rhs.mat_[i][j->first]);	
+					result.insert_at(i, j->first, j->second + rhs.mat_[i][j->first]);	
 					++j;
 				}
 				while(j_rhs!=rhs.mat_[i].end()){
-					result->insert_at(i, j_rhs->first, j_rhs->second + mat_[i][j_rhs->first]);	
+					result.insert_at(i, j_rhs->first, j_rhs->second + mat_[i][j_rhs->first]);	
 					++j_rhs;
 				}
 			}
-			return *result;
+			/*
+			for(int i = 0;i<r_;i++) {
+				for (int j=0;j < c_;j++ ) {
+					result.insert_at(i,j,(*this)[i][j] + rhs[i][j]);
+				} 
+			}*/
+		} else {
+			result.r_ = 0;
+			result.c_ = 0;
+			if(result.mat_ != nullptr) {
+				delete mat_;
+				result.mat_ = nullptr;
+			}
+			result.nnz_ = 0; 				
 		}
-		return *(new sparse_matrix<data,container>());
 	}
 
 	bool is_empty () {
@@ -253,7 +266,7 @@ int main()
 	twod.push_back({0,0,0,2});
 	twod.push_back({1,0,0,0});
 	twod.push_back({0,4,0,0});
-	sparse_matrix <int,unordered_map<int,int>> sp(twod,0);
+	sparse_matrix <int,map<int,int>> sp(twod,0);
 	cout<<"print non-zeros\n";
 	sp.disp();
 	cout<<endl;
@@ -300,13 +313,14 @@ int main()
 
     }	
     arr1[1][1]=6;
-    sparse_matrix<int,map<int,int>> obj3(arr1,2,2,0);    
+    sparse_matrix<int> obj3(arr1,2,2,0);    
 	obj3.insert_at(1,1,1);
 	obj3.insert_at(1,0,6);
 	cout<<"Testing [1][1] -> "<<obj3[1][1]<<endl;
 	obj3.disp();
 	cout<<"Addition : \n";
-	sparse_matrix<int,map<int,int>> res = obj3.add(sp2);
+	sparse_matrix<int> res(arr1,2,2,0); 
+	obj3.add(sp2,res);
 	res.disp();
 	res.transpose();
 	cout<<"Transpose Result : "<<endl;
