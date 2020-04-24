@@ -14,6 +14,9 @@ class sparse_matrix
 {
 public:
 	typedef V data;
+	
+	sparse_matrix() : r_(0), c_(0), mat_(nullptr), nnz_(0) {}
+
 	template<typename X>
 	sparse_matrix(X arr, int r, int c, data z) : 
 	r_(r), c_(c), z_(z), mat_(new container[r]), nnz_(0)
@@ -147,13 +150,12 @@ public:
 			mat_[row][col] = value;
 	}
 	
-	//friend sparse_matrix::operator+(const sparse_matrix& rhs);
-
-	sparse_matrix<int>* operator+ (const sparse_matrix& rhs){ 
+	
+	sparse_matrix<data,container>& add(const sparse_matrix<data,container>& rhs){ 
 		if(rhs.row_size() == r_ && rhs.col_size()==c_) {
 			cout<<"Flag\n";
 			data **m = nullptr;
-			sparse_matrix<int> *result = new sparse_matrix<int>(m,r_,c_,z_);
+			sparse_matrix<data,container> *result = new sparse_matrix<data,container>(m,r_,c_,z_);
 			for(int i = 0; i < r_; ++i)
 			{
 				auto j = mat_[i].begin();
@@ -167,9 +169,13 @@ public:
 					++j_rhs;
 				}
 			}
-			return result;
+			return *result;
 		}
-		return nullptr;
+		return *(new sparse_matrix<data,container>());
+	}
+
+	bool is_empty () {
+		return (mat_ == nullptr);
 	}
 
 	int row_size() const
@@ -274,7 +280,7 @@ int main()
 			m[i][j] = 0;
 	m[0][2] = 1;
 	m[1][1] = 2;
-	sparse_matrix <int> sp2(m,2,2,0);
+	sparse_matrix <int,map<int,int>> sp2(m,2,2,0);
 	sp2.disp();
 
 	cout<<"\n2D array\n";
@@ -294,13 +300,13 @@ int main()
 
     }	
     arr1[1][1]=6;
-    sparse_matrix<int> obj3(arr1,2,2,0);    
+    sparse_matrix<int,map<int,int>> obj3(arr1,2,2,0);    
 	obj3.insert_at(1,1,1);
 	obj3.insert_at(1,0,6);
 	cout<<"Testing [1][1] -> "<<obj3[1][1]<<endl;
 	obj3.disp();
 	cout<<"Addition : \n";
-	sparse_matrix<int> res = *(obj3 + sp2);
+	sparse_matrix<int,map<int,int>> res = obj3.add(sp2);
 	res.disp();
 	res.transpose();
 	cout<<"Transpose Result : "<<endl;
