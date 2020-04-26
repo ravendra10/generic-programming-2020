@@ -1,338 +1,139 @@
-#include <iostream>
-#include <iterator>
-#include <unordered_map>
-#include <map>
-#include <vector>
-#include <algorithm>
-#include <iterator>
-
-using namespace std;
-
-
-template<typename V, typename container = unordered_map<int,V> >
-class sparse_matrix
-{
-public:
-	typedef V data;
-	
-	sparse_matrix() : r_(0), c_(0), mat_(nullptr), nnz_(0) {}
-
-	template<typename X>
-	sparse_matrix(X arr, int r, int c, data z) : 
-	r_(r), c_(c), z_(z), mat_(new container[r]), nnz_(0)
-	{	
-		if(arr !=nullptr) {
-			for(int i = 0; i < r; ++i)
-			{
-				for(int j = 0; j < c; ++j)
-				{
-					if(arr[i][j] != z)
-					{
-						mat_[i][j] = arr[i][j];
-						++nnz_;
-					}
-				}
-			}
-		}
-	}
-
-	template <typename T>
-	sparse_matrix (T inp,int z) :
-	z_(z), nnz_(0)
-	{
-		int r = distance(inp.begin(),inp.end());
-		r_ = r;
-		mat_ = new container[r];
-		typename T::iterator x = inp.begin();
-		for(int i = 0;x!=inp.end();++x,++i)
-		{
-			auto y = (*x).begin();
-			for(int j = 0;y!=(*x).end();++y,++j)
-			{
-				if(*y != z)
-				{
-					mat_[i][j] = *y;
-					++nnz_;
-				}
-				c_ = j;
-			}
-		}
-	}
-	class Iterator : public iterator<forward_iterator_tag, data>
-	{
-	private:
-		int cr_; //current row of iterator
-		typename container::iterator curr_;
-		const sparse_matrix* sm_;
-
-	public:
-
-		friend sparse_matrix;
-		Iterator(const sparse_matrix *sp) : sm_(sp), curr_(sp->mat_[sp->r_-1].end()) {}
-		Iterator(const sparse_matrix *sp, int r) : cr_(r), sm_(sp), curr_(sp->mat_[r].begin()) {}
-		bool operator==(const Iterator &rhs) const
-		{
-			return curr_ == rhs.curr_;
-		}
-		bool operator!=(const Iterator &rhs) const
-		{
-			return !(*this==rhs);
-		}
-		data& operator*() const
-		{
-			return curr_->second;
-		}
-		Iterator& operator++()
-		{
-			typename container::iterator temp = curr_;
-			
-			if(++temp != sm_->mat_[cr_].end())
-			{
-				++curr_;
-				return *this;
-			}
-			else
-			{
-				while(temp == sm_->mat_[cr_].end())
-				{
-					if(cr_ == sm_->r_ -1)
-						break;
-					temp = sm_->mat_[++cr_].begin();
-				}
-				curr_ = temp;
-				return *this;
-			}
-		}
-		Iterator operator++(int)
-		{
-			Iterator temp(*this);
-            ++*this;
-            return temp;
-		}
-
-	};
-
-	Iterator begin() const
-	{
-		int i = 0;
-		while(i<r_ && mat_[i].begin() ==  mat_[i].end())
-			++i;
-		if (i == r_)
-			return Iterator(this);
-		return Iterator(this,i);
-	}
-
-	Iterator end() const
-	{
-		return Iterator(this);
-	}
-
-	class row {
-		private:
-			sparse_matrix *sp_;
-			int mat_row_;
-		public:
-		row(sparse_matrix *sp,int r) :mat_row_(r),sp_(sp){}
-		data operator[](int col_index){
-			if(sp_->mat_[mat_row_].find(col_index)!=sp_->mat_[mat_row_].end()) {
-				return sp_->mat_[mat_row_][col_index];
-			}
-			return sp_->z_;
-		} 
-	};
-
-	row operator[] (int row_index) {
-		return row(this,row_index);
-	}
-
-	void insert_at(int row, int col, data value) {
-		if(row < r_ && col < c_ && value!=z_)
-			mat_[row][col] = value;
-	}
-
-	template <typename d,typename c>
-	friend class sparse_matrix;
-
-	template<typename c1,typename c2>
-	void add(sparse_matrix<data,c1>& rhs, sparse_matrix<data,c2>& result){ 
-		if(rhs.row_size() == r_ && rhs.col_size()==c_) {
-			
-			for(int i = 0; i < r_; ++i)
-			{
-				auto j = mat_[i].begin();
-				auto j_rhs = rhs.mat_[i].begin();
-				while(j!=mat_[i].end()){
-					result.insert_at(i, j->first, j->second + rhs.mat_[i][j->first]);	
-					++j;
-				}
-				while(j_rhs!=rhs.mat_[i].end()){
-					result.insert_at(i, j_rhs->first, j_rhs->second + mat_[i][j_rhs->first]);	
-					++j_rhs;
-				}
-			}
-			/*
-			for(int i = 0;i<r_;i++) {
-				for (int j=0;j < c_;j++ ) {
-					result.insert_at(i,j,(*this)[i][j] + rhs[i][j]);
-				} 
-			}*/
-		} else {
-			result.r_ = 0;
-			result.c_ = 0;
-			if(result.mat_ != nullptr) {
-				delete mat_;
-				result.mat_ = nullptr;
-			}
-			result.nnz_ = 0; 				
-		}
-	}
-
-	bool is_empty () {
-		return (mat_ == nullptr);
-	}
-
-	int row_size() const
-	{
-		return r_;
-	}
-	int col_size() const
-	{
-		return c_;
-	}
-
-	void disp() const
-	{
-		for(int i = 0; i < r_; ++i)
-		{
-			auto j = mat_[i].begin();
-			while(j!=mat_[i].end())
-			{
-				cout<<"("<<i<<","<<j->first<<") : "<<j->second<<"\n";
-				++j;
-			}
-		}
-	}
-
-	Iterator& find(data ele) {
-		for(int i = 0; i < r_; ++i)
-		{
-			auto j = mat_[i].begin();
-			while(j!=mat_[i].end())
-			{
-				if(j->second == ele) {  
-					Iterator *ret = new Iterator(this,i);
-					ret->curr_=j;
-					return *ret;
-				}
-				++j;
-			}
-		}
-		Iterator *ret = new Iterator(this->end());
-		return *ret;
-	}
-
-	void transpose(){
-		container * new_mat = new container[c_];
-		for(int i = 0; i < r_; ++i)
-		{
-			auto j = mat_[i].begin();
-			while(j!=mat_[i].end())
-			{
-				new_mat[j->first][i] = j->second;
-				++j;
-			}
-		}
-		int temp = c_;
-		c_ = r_;
-		r_ = temp;
-		delete[] mat_;
-		mat_ = new_mat;
-	}
-
-private:
-	int r_;
-	int c_;
-	data z_;
-	int nnz_;
-	container* mat_;
-
-};
+#include<iostream>
+#include<algorithm>
+#include<list>
+#include "sparse_matrix.h"
 
 int main()
 {
-	cout<<"vector\n";
-	vector<vector<int>> twod;
-	twod.push_back({0,0,3,0});
-	twod.push_back({0,0,0,2});
-	twod.push_back({1,0,0,0});
-	twod.push_back({0,4,0,0});
-	sparse_matrix <int,map<int,int>> sp(twod,0);
-	cout<<"print non-zeros\n";
-	sp.disp();
-	cout<<endl;
-	auto it = sp.begin();
-	cout<<"== operator\n";
-	auto it2 = sp.begin();
-	cout<<boolalpha<<(it == it2);
-	cout<<"\npost inc " << *it2++ <<"\n";
-	*it2 = 7;
-	cout<<"\nsequential iteration of non zeros \n";
-	while(it != sp.end())
-	{
-		cout<<*it<<endl;
-		++it;
-	}
-	cout<<"Find : \n";
-	cout<<*(find(sp.begin(),sp.end(),3))<<endl;
-	cout<<"---------\n";
-
-
-	int m[2][2];
-	for(int i=0;i<4;++i)
-		for(int j=0;j<4;++j)
-			m[i][j] = 0;
-	m[0][2] = 1;
-	m[1][1] = 2;
-	sparse_matrix <int,map<int,int>> sp2(m,2,2,0);
-	sp2.disp();
-
-	cout<<"\n2D array\n";
-	int **arr1;
-
-    arr1 = new int *[2];
-
-    for (int i =0; i < 2;i++) {
-
-        arr1[i] = new int[2];
-
-        for(int j=0;j<2;j++) {
-
-            arr1[i][j]=0;
-
+    cout<<"\n2-D array to sparse matrix\n";
+    int a[3][3];
+    int b[3][3];
+    for(int i = 0; i<3;++i)
+    {
+        for(int j = 0; j < 3; ++j)
+        {
+            a[i][j] = 0;
+            b[i][j] = 0;
         }
+    }
+    a[0][1] = 1;
+    a[1][1] = 2;
+    a[1][2] = 3;
+    a[2][2] = 4;
 
-    }	
-    arr1[1][1]=6;
-    sparse_matrix<int> obj3(arr1,2,2,0);    
-	obj3.insert_at(1,1,1);
-	obj3.insert_at(1,0,6);
-	cout<<"Testing [1][1] -> "<<obj3[1][1]<<endl;
-	obj3.disp();
-	cout<<"Addition : \n";
-	sparse_matrix<int> res(arr1,2,2,0); 
-	obj3.add(sp2,res);
-	res.disp();
-	res.transpose();
-	cout<<"Transpose Result : "<<endl;
-	res.disp();
-	for(int i=0;i<2;i++){
-		for(int j=0;j<2;j++) {
-			cout<<res[i][j]<<" "; 
-		}
-		cout<<endl;
-	}
-	cout<<"Find : \n";
-	auto iter = res.find(7);
-	*iter= 8;
-	res.disp(); 
+    b[0][0] = 1;
+    b[0][2] = 1;
+    b[2][1] = 1;
+    b[2][0] = 2;
+    b[1][1] = 3;
+
+    sparse_matrix<int,map<int,int>> A(a,3,3,0);
+    A.name_ = "A";
+    A.disp();
+    sparse_matrix<int,map<int,int>> B(b,3,3,0);
+    B.name_ = "B";
+    B.disp();
+
+    cout<<"\nvector of vector to sparse_matrix\n";
+    vector<vector<int>> twod;
+    twod.push_back({0,0,3,0});
+    twod.push_back({0,0,0,2});
+    twod.push_back({1,0,0,0});
+    twod.push_back({0,4,0,0});
+    sparse_matrix <int,map<int,int>> V(twod,0);
+    V.disp();
+    
+    cout<<"\nlist of vector to sparse_matrix\n";
+    list <vector<int>> L1;
+    L1.push_back({0,0,1,0});
+    L1.push_back({0,0,0,0});
+    L1.push_back({3,0,0,4});
+    sparse_matrix<int,map<int,int>> P1(L1,0);
+    P1.name_ = "P1";
+    P1.disp();
+
+    cout<<"\nlinear structure to sparse_matrix\n";
+    list <vector<int>> L2;
+    L2.push_back({0,0,1,0});
+    L2.push_back({0,0,0,0});
+    L2.push_back({3,0,0,4});
+    sparse_matrix<int,map<int,int>> P2(L2,0);
+    P2.name_ = "P2";
+    P2.disp();
+
+
+    if(can_multiply(A,B))
+    {
+        sparse_matrix<int,map<int,int>> C = multiplication(A,B);
+        C.name_ = "A*B";
+        C.disp();
+    }
+    if(can_add(A,B))
+    {
+        sparse_matrix<int,map<int,int>> D = addition(A,B);
+        D.name_ = "A+B";
+        D.disp();
+    }
+    B.disp();
+    sparse_matrix<int,map<int,int>> Bt = B.transpose();
+    Bt.name_ = "B transpose";
+    Bt.disp();
+    
+    //Find
+    int ele=34;
+    auto iter = find(Bt.begin(),Bt.end(),ele);
+    cout<<"Find element "<<ele<<" in matrix B transpose : ";
+    if (iter!=Bt.end()) cout<<"Found"<<endl;
+    else cout<<"Not Found"<<endl;
+    ele=3;
+    iter = find(Bt.begin(),Bt.end(),ele);
+    cout<<"Find element "<<ele<<" in matrix B transpose : ";
+    if (iter!=Bt.end()) cout<<"Found"<<endl;
+    else cout<<"Not Found"<<endl;
+    
+    //Insert Element, replace if already exists
+    int row = 0,col = 1;
+    ele = 8;
+    cout<<"Insert Element "<<ele<<" at ("<<row<<","<<col<<")\n";
+    Bt.insert_at(row,col,ele);
+    Bt.disp();
+    row = 0,col = 1;
+    ele = 6;
+    cout<<"Insert Element "<<ele<<" at ("<<row<<","<<col<<")\n";
+    Bt.insert_at(row,col,ele);
+    Bt.disp();
+
+    //Indexing operator
+    cout<<"Display Matrix using indexing operator : \n";
+    for( int i=0;i<Bt.row_size();i++) {
+        for(int j =0;j<Bt.col_size();j++){
+            cout<<Bt[i][j]<<" ";
+        }
+        cout<<endl;
+    }
+    //Iterator
+    cout<<"Display non zero elements using iterator : \n";
+    auto start = Bt.begin();
+    auto end = Bt.end();
+    while (start!=end){
+        cout<<*start<<endl;
+        start++;
+    }
+
+    //L-value dereference iterator
+    cout<<"Iterator L-value dereference-> replace first element: \n";
+    start = Bt.begin();
+    *start = 0;
+    cout<<*start<<endl;
+    
+    //delete index
+    cout<<"Delete index : (1,1)"<<endl;
+    Bt.delete_index(1,1);
+    Bt.disp();
+
+    //Compress
+    cout<<"Compress Matrix:"<<endl;
+    Bt.compress();
+    Bt.disp();
+    
 }
